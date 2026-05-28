@@ -6,6 +6,7 @@ import {
   lastSundayWeekRange,
   toIsoDate,
   dowLabel,
+  parseIsoDate,
 } from "../src/util/date.js";
 
 describe("weekRange (Monday-based)", () => {
@@ -90,5 +91,24 @@ describe("toIsoDate / dowLabel", () => {
   it("dowLabel uses Mon-Sun labels", () => {
     expect(dowLabel("2026-05-25")).toBe("Mon");
     expect(dowLabel("2026-05-31")).toBe("Sun");
+  });
+});
+
+describe("parseIsoDate strict validation", () => {
+  it("accepts valid calendar dates", () => {
+    expect(parseIsoDate("2026-05-28").getDate()).toBe(28);
+    expect(parseIsoDate("2024-02-29").getDate()).toBe(29); // leap year
+  });
+
+  it("rejects dates that JS silently rolls over (e.g. Feb 31)", () => {
+    expect(() => parseIsoDate("2026-02-31")).toThrow(/does not exist/);
+    expect(() => parseIsoDate("2025-02-29")).toThrow(/does not exist/); // not a leap year
+    expect(() => parseIsoDate("2026-13-01")).toThrow(/does not exist/);
+    expect(() => parseIsoDate("2026-04-31")).toThrow(/does not exist/);
+  });
+
+  it("still rejects malformed strings", () => {
+    expect(() => parseIsoDate("2026/5/28")).toThrow(/expected YYYY-MM-DD/);
+    expect(() => parseIsoDate("not a date")).toThrow(/expected YYYY-MM-DD/);
   });
 });

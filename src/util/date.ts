@@ -16,7 +16,11 @@ export function parseIsoDate(s: string): Date {
     throw new Error(`Invalid date (expected YYYY-MM-DD): ${s}`);
   }
   const [y, m, d] = s.split("-").map(Number);
-  return new Date(y, m - 1, d);
+  const date = new Date(y, m - 1, d);
+  if (toIsoDate(date) !== s) {
+    throw new Error(`Invalid date (does not exist on the calendar): ${s}`);
+  }
+  return date;
 }
 
 /**
