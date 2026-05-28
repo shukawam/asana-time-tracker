@@ -1,0 +1,33 @@
+{
+  "name": "asana-time-tracker",
+  "version": "0.1.0",
+  "description": "CLI to record billable hours into Asana as the single source of truth, with weekly copy-paste summaries for SFDC and Spreadsheet",
+  "type": "module",
+  "bin": {
+    "att": "./bin/att.mjs"
+  },
+  "scripts": {
+    "att": "tsx src/bin/att.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "install-skill": "node scripts/install-skill.mjs"
+  },
+  "keywords": ["asana", "time-tracking", "cli"],
+  "author": "Shuhei Kawamura",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@inquirer/prompts": "^5.5.0",
+    "asana": "^3.0.13",
+    "commander": "^12.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.4",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.2",
+    "vitest": "^2.1.2"
+  }
+}

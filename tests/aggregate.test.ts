@@ -1,0 +1,154 @@
+import { describe, it, expect } from "vitest";
+import { rollupWeek } from "../src/summary/aggregate.js";
+import { formatMarkdown, formatCsv, formatSfdc } from "../src/summary/format.js";
+import type { TimeEntry } from "../src/asana/timeEntries.js";
+
+const days = [
+  "2026-05-25",
+  "2026-05-26",
+  "2026-05-27",
+  "2026-05-28",
+  "2026-05-29",
+  "2026-05-30",
+  "2026-05-31",
+];
+
+function entry(
+  taskGid: string,
+  projectGid: string,
+  projectName: string,
+  taskName: string,
+  date: string,
+  minutes: number,
+): TimeEntry {
+  return {
+    gid: `entry-${taskGid}-${date}-${minutes}`,
+    duration_minutes: minutes,
+    entered_on: date,
+    task: {
+      gid: taskGid,
+      name: taskName,
+      permalink_url: `https://app.asana.com/0/${projectGid}/${taskGid}`,
+      projects: [{ gid: projectGid, name: projectName }],
+    },
+  };
+}
+
+describe("rollupWeek", () => {
+  it("aggregates entries by customer × day", () => {
+    const entries: TimeEntry[] = [
+      entry("t1", "p1", "ACME", "Design review", "2026-05-25", 120),
+      entry("t1", "p1", "ACME", "Design review", "2026-05-27", 60),
+      entry("t2", "p1", "ACME", "Kickoff", "2026-05-26", 90),
+      entry("t3", "p2", "Beta", "Impl", "2026-05-28", 240),
+      entry("t3", "p2", "Beta", "Impl", "2026-05-29", 120),
+    ];
+    const week = rollupWeek(entries, days);
+    expect(week.customers.map((c) => c.name)).toEqual(["Beta", "ACME"]);
+
+    const beta = week.customers[0];
+    expect(beta.totalMinutes).toBe(360);
+    expect(beta.byDate["2026-05-28"]).toBe(240);
+    expect(beta.tasks).toHaveLength(1);
+
+    const acme = week.customers[1];
+    expect(acme.totalMinutes).toBe(270);
+    expect(acme.byDate["2026-05-25"]).toBe(120);
+    expect(acme.byDate["2026-05-26"]).toBe(90);
+    expect(acme.byDate["2026-05-27"]).toBe(60);
+    expect(acme.tasks).toHaveLength(2);
+
+    expect(week.totalMinutes).toBe(630);
+    expect(week.totalByDate["2026-05-25"]).toBe(120);
+  });
+
+  it("ignores entries outside the week", () => {
+    const entries: TimeEntry[] = [
+      entry("t1", "p1", "ACME", "x", "2026-05-24", 60),
+      entry("t1", "p1", "ACME", "x", "2026-05-25", 60),
+    ];
+    const week = rollupWeek(entries, days);
+    expect(week.totalMinutes).toBe(60);
+  });
+});
+
+describe("format output", () => {
+  const entries: TimeEntry[] = [
+    entry("t1", "p1", "ACME", "Design review", "2026-05-25", 120),
+    entry("t2", "p1", "ACME", "Kickoff", "2026-05-26", 90),
+    entry("t3", "p2", "Beta", "Impl", "2026-05-28", 240),
+  ];
+  const week = rollupWeek(entries, days);
+
+  it("markdown has heading, table, and SFDC entries", () => {
+    const out = formatMarkdown(week);
+    expect(out).toContain("## Week of 2026-05-25 (Mon)");
+    expect(out).toContain("| Customer |");
+    expect(out).toContain("Beta");
+    expect(out).toContain("ACME");
+    expect(out).toContain("### SFDC entries (1h rounded)");
+    expect(out).toContain("- Beta: 4h");
+    expect(out).toContain("- ACME: 4h"); // 210 min ≈ 4h rounded
+  });
+
+  it("csv format is per-entry rows with Date/Kong Resource/Activity Details/Hours Consumed", () => {
+    const withRole = (e: TimeEntry, role: string): TimeEntry => ({
+      ...e,
+      time_tracking_category: { gid: "c1", name: role },
+    });
+    const csvEntries = [
+      withRole(entries[0], "Engagement Manager"),
+      withRole(entries[1], "Engagement Manager"),
+      withRole(entries[2], "Field Engineer"),
+    ];
+    const out = formatCsv(csvEntries);
+    const lines = out.split("\n");
+    expect(lines[0]).toBe("Date,Kong Resource,Activity Details,Hours Consumed");
+    expect(lines[1]).toBe("2026/5/25,Engagement Manager,Design review,2");
+    expect(lines[2]).toBe("2026/5/26,Engagement Manager,Kickoff,2");
+    expect(lines[3]).toBe("2026/5/28,Field Engineer,Impl,4");
+  });
+
+  it("csv drops zero-rounded entries and blanks out missing role", () => {
+    const tiny: TimeEntry = {
+      gid: "x",
+      duration_minutes: 15,
+      entered_on: "2026-05-25",
+      task: { gid: "t9", name: "tiny", projects: [{ gid: "p1", name: "ACME" }] },
+    };
+    const withoutRole: TimeEntry = {
+      gid: "y",
+      duration_minutes: 60,
+      entered_on: "2026-05-26",
+      task: { gid: "t10", name: "no role", projects: [{ gid: "p1", name: "ACME" }] },
+    };
+    const out = formatCsv([tiny, withoutRole]);
+    const lines = out.split("\n");
+    expect(lines).toHaveLength(2);
+    expect(lines[1]).toBe("2026/5/26,,no role,1");
+  });
+
+  it("sfdc format emits one TSV row per project with 7 Sun→Sat day cells", () => {
+    const sunDays = [
+      "2026-05-24",
+      "2026-05-25",
+      "2026-05-26",
+      "2026-05-27",
+      "2026-05-28",
+      "2026-05-29",
+      "2026-05-30",
+    ];
+    const sunEntries: TimeEntry[] = [
+      entry("t1", "p1", "ACME", "Design review", "2026-05-25", 120),
+      entry("t2", "p1", "ACME", "Kickoff", "2026-05-26", 90),
+      entry("t3", "p2", "Beta", "Impl", "2026-05-28", 240),
+    ];
+    const sunWeek = rollupWeek(sunEntries, sunDays);
+    const out = formatSfdc(sunWeek);
+    const lines = out.split("\n");
+    expect(lines[0]).toBe("Week ending 2026-05-30 (Sat)");
+    expect(lines).toContain("Beta\t0\t0\t0\t0\t4\t0\t0");
+    expect(lines).toContain("ACME\t0\t2\t2\t0\t0\t0\t0");
+    expect(lines.at(-1)).toMatch(/^\(actual: /);
+  });
+});
