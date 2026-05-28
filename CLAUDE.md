@@ -9,11 +9,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm run test:watch` — vitest in watch mode.
 - `npx vitest run tests/aggregate.test.ts -t "ignores entries outside the week"` — run a single test by file + name pattern.
 - `npm run typecheck` — `tsc --noEmit` for type-only check (no build artifacts).
-- `npm link` then `att <args>` — exposes the global `att` binary (the `bin/att.mjs` shim re-runs `src/bin/att.ts` through `tsx`, so source edits take effect without a build step).
+- `npm run build` — `rm -rf dist && tsc -p tsconfig.build.json` emits `dist/`, including the executable entry `dist/bin/att.js` (the shebang from `src/bin/att.ts` is preserved). `prepublishOnly` runs typecheck + build automatically before `npm publish`.
+- `npm link` then `att <args>` — global `att` binary. Run `npm run build` first; the `bin` field in package.json points at `dist/bin/att.js`.
 
-There is no compile step in normal use — `tsx` runs TypeScript directly. `dist/` is configured in `tsconfig.json` for typecheck output organization only.
+For the dev loop, `tsx` runs TypeScript directly (`npm run att -- <args>`), so source edits take effect without rebuilding. The compiled `dist/` is for publishing only.
 
-A Claude Code Skill is bundled at `skills/att/SKILL.md`; users opt in via `npm run install-skill` (creates `~/.claude/skills/att/SKILL.md` as a symlink). The skill itself is intentionally scoped to `att log` only — summary/list/edit/rm are invoked directly through Bash.
+A Claude Code Skill is bundled at `skills/att/SKILL.md`; users opt in via `att install-skill` (the subcommand lives in `src/commands/installSkill.ts` and resolves `skills/att/SKILL.md` two directory levels above its own file, which works identically in dev, after build, and post-global-install). The skill itself is intentionally scoped to `att log` only — summary/list/edit/rm are invoked directly through Bash.
 
 ## Architecture
 
@@ -90,6 +91,18 @@ If you add a new format, decide upfront whether it's aggregated (use rollup) or 
 
 - PAT precedence: `process.env.ASANA_PAT` → `config.asanaPat` (in `~/.config/att/config.json`). `att init` will persist the PAT to config only when `ASANA_PAT` is not set in the environment at save time — this keeps env-driven setups from accidentally writing tokens to disk.
 - The config file is written with mode 600.
+
+## Releasing a new version
+
+The version comes from the GitHub Release tag, not a manual `package.json` bump:
+
+1. On GitHub, **Releases → Draft a new release**, tag name `vX.Y.Z` (must be semver; pre-releases like `v0.2.0-rc.1` are allowed), pick the target branch, write notes, **Publish release**.
+2. `.github/workflows/release.yml` runs on `release: published`: derives `X.Y.Z` from the tag, pins `package.json` to it via `npm version --no-git-tag-version --allow-same-version`, runs typecheck/test/build, then `npm publish --provenance --access public`.
+3. Auth is via OIDC **Trusted Publisher** — configured once on npmjs.com (package → Settings → Trusted Publisher → GitHub Actions: org `shukawam`, repo `asana-time-tracker`, workflow filename `release.yml`). No `NPM_TOKEN` secret is needed; the workflow's `id-token: write` permission lets npm verify the run.
+4. The committed `package.json#version` is **not** kept in sync with releases — the workflow pins it transiently inside the runner. Bumping it locally before tagging is also fine (`--allow-same-version` makes it idempotent).
+5. If the tag isn't semver-shaped, the workflow fails fast in the "Derive version from release tag" step with a clear `::error::` annotation.
+
+**GHA action pinning**: every third-party action in `.github/workflows/*.yml` MUST be pinned to a full 40-char commit SHA with the human-readable tag in a trailing comment (`uses: owner/repo@<sha>  # v1.2.3`). Floating tags like `@v4` are forbidden — they're vulnerable to tag-move supply-chain attacks (Tj-actions/changed-files style). To bump, resolve the new tag's commit via `gh api repos/<owner>/<repo>/commits/<tag> --jq .sha` and update SHA + comment together in the same commit.
 
 ## What's intentionally NOT here (don't add without asking)
 

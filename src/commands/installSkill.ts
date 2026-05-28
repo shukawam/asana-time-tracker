@@ -1,30 +1,31 @@
-#!/usr/bin/env node
 import { promises as fs } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const repoRoot = resolve(__dirname, "..");
-const source = join(repoRoot, "skills", "att", "SKILL.md");
+// `skills/att/SKILL.md` sits two levels above this module in all three layouts:
+//   dev:    <repo>/src/commands/installSkill.ts   → <repo>/skills/att/SKILL.md
+//   built:  <root>/dist/commands/installSkill.js  → <root>/skills/att/SKILL.md
+//   global: …/node_modules/<pkg>/dist/commands/…  → …/node_modules/<pkg>/skills/att/SKILL.md
+const here = dirname(fileURLToPath(import.meta.url));
+const source = resolve(here, "..", "..", "skills", "att", "SKILL.md");
 const targetDir = join(homedir(), ".claude", "skills", "att");
 const target = join(targetDir, "SKILL.md");
 
-async function main() {
+export async function installSkillCommand(): Promise<void> {
   try {
     await fs.access(source);
   } catch {
-    console.error(`Source skill file not found: ${source}`);
-    process.exit(1);
+    throw new Error(`Bundled skill not found at ${source}. Reinstall the package and try again.`);
   }
 
   await fs.mkdir(targetDir, { recursive: true });
 
-  let existing;
+  let existing: Awaited<ReturnType<typeof fs.lstat>> | undefined;
   try {
     existing = await fs.lstat(target);
   } catch (err) {
-    if ((err).code !== "ENOENT") throw err;
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
   }
 
   if (existing) {
@@ -39,11 +40,10 @@ async function main() {
       console.log(`  was: ${current}`);
       await fs.unlink(target);
     } else {
-      console.error(
+      throw new Error(
         `Refusing to overwrite a real file at ${target}.\n` +
           `Move or delete it first if you want this skill installed there.`,
       );
-      process.exit(1);
     }
   }
 
@@ -57,8 +57,3 @@ async function main() {
   console.log("");
   console.log(`Uninstall: rm ${target}`);
 }
-
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});

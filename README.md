@@ -13,12 +13,13 @@ Requires Asana **Business or Enterprise** plan (native Time Tracking is gated).
 ## Install
 
 ```bash
-git clone <this repo> ~/work/asana-time-tracker
-cd ~/work/asana-time-tracker
-npm install
-npm link        # exposes the `att` command globally
+npm install -g @shukawam/asana-time-tracker
 att --help
 ```
+
+Requires Node.js ≥ 20.
+
+> **From source (contributors)**: `git clone https://github.com/shukawam/asana-time-tracker && cd asana-time-tracker && npm install && npm link`. The dev workflow runs TypeScript directly via `tsx` (no build step) — see [Development](#development).
 
 ## Setup
 
@@ -143,17 +144,19 @@ Roles are stored as native **Asana Time Tracking Categories**, so they round-tri
 The repo ships a [Claude Code Skill](skills/att/SKILL.md) that makes Claude better at translating natural-language work descriptions into `att log` commands (preview-then-confirm flow, multi-entry batching, ambiguity detection). Install once and use it from any working directory:
 
 ```bash
-npm run install-skill     # symlinks skills/att/SKILL.md → ~/.claude/skills/att/SKILL.md
+att install-skill     # symlinks the bundled SKILL.md → ~/.claude/skills/att/SKILL.md
 ```
 
-Then in Claude Code, either say `/att` or just describe the work — e.g. 「今 1.5h ACME のキックオフやってた、記録して」. Restart Claude Code if it's already running so it picks up the skill. Uninstall with `rm ~/.claude/skills/att/SKILL.md`. The symlink means `git pull` in this repo also updates the installed skill.
+Then in Claude Code, either say `/att` or just describe the work — e.g. 「今 1.5h ACME のキックオフやってた、記録して」. Restart Claude Code if it's already running so it picks up the skill. Uninstall with `rm ~/.claude/skills/att/SKILL.md`. The symlink points back at the installed package, so `npm update -g @shukawam/asana-time-tracker` (or `git pull` for source installs) also updates the skill.
 
 ## Development
 
 ```bash
 npm test              # vitest
 npm run typecheck     # tsc --noEmit
-npm run att -- ...    # run CLI in dev (no global link needed)
+npm run att -- ...    # run CLI in dev (tsx — no build step needed)
+npm run build         # compile to dist/ (for publish; runs automatically via prepublishOnly)
+npm pack --dry-run    # preview what would be published
 ```
 
 ### Known issues
