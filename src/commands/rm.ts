@@ -24,8 +24,9 @@ export async function rmCommand(entryGids: string[], opts: RmOpts): Promise<void
   );
 
   // Refuse to delete entries that aren't ours, even if the PAT has the
-  // permission to. The only path to "I want to delete someone else's entry"
-  // is the Asana web UI; this CLI is single-user by design.
+  // permission to. att is single-user by design — anything else has to
+  // happen in the Asana web UI. Fail-closed: if we can't positively confirm
+  // ownership we skip the entry rather than risk deleting someone else's.
   const deletable: string[] = [];
   const skipped: { gid: string; reason: string }[] = [];
   for (const f of fetched) {
@@ -34,7 +35,11 @@ export async function rmCommand(entryGids: string[], opts: RmOpts): Promise<void
       continue;
     }
     const ownerGid = f.entry.created_by?.gid;
-    if (ownerGid && ownerGid !== config.userGid) {
+    if (!ownerGid) {
+      skipped.push({ gid: f.gid, reason: "owner unknown (created_by missing from API response)" });
+      continue;
+    }
+    if (ownerGid !== config.userGid) {
       const ownerName = f.entry.created_by?.name ?? ownerGid;
       skipped.push({ gid: f.gid, reason: `owned by ${ownerName}, not you` });
       continue;
