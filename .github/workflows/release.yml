@@ -31,7 +31,7 @@ jobs:
       - name: Upgrade npm for OIDC trusted publishing
         run: npm install -g npm@11
 
-      - name: Derive version from release tag
+      - name: Derive version + dist-tag from release tag
         id: version
         run: |
           tag="${{ github.event.release.tag_name }}"
@@ -40,7 +40,15 @@ jobs:
             echo "::error::Tag '$tag' is not a semver version (expected like 'v1.2.3' or 'v1.2.3-rc.1')"
             exit 1
           fi
+          # Stable versions land on `latest`; prereleases (e.g. v1.2.3-rc.0)
+          # go to `next` so `npm install` keeps resolving to the stable line.
+          # npm 11+ requires --tag to be explicit for prereleases.
+          dist_tag="latest"
+          if [[ "$version" == *-* ]]; then
+            dist_tag="next"
+          fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "dist_tag=$dist_tag" >> "$GITHUB_OUTPUT"
 
       - run: npm ci
 
@@ -52,4 +60,4 @@ jobs:
       - run: npm run build
 
       - name: Publish to npm with provenance
-        run: npm publish --provenance --access public
+        run: npm publish --provenance --access public --tag "${{ steps.version.outputs.dist_tag }}"
