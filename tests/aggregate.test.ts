@@ -128,6 +128,25 @@ describe("format output", () => {
     expect(lines[1]).toBe("2026/5/26,,no role,1");
   });
 
+  it("csv defangs spreadsheet formula injection in role/activity cells", () => {
+    const malicious: TimeEntry = {
+      gid: "z",
+      duration_minutes: 60,
+      entered_on: "2026-05-25",
+      task: {
+        gid: "t11",
+        name: "=HYPERLINK(\"http://evil\",\"click\")",
+        projects: [{ gid: "p1", name: "ACME" }],
+      },
+      time_tracking_category: { gid: "c1", name: "+Engagement" },
+    };
+    const out = formatCsv([malicious]);
+    const dataLine = out.split("\n")[1];
+    // both cells start with an apostrophe (CSV-quoted because of the embedded ",")
+    expect(dataLine).toContain(",'+Engagement,");
+    expect(dataLine).toContain('"\'=HYPERLINK(""http://evil"",""click"")"');
+  });
+
   it("sfdc format emits one TSV row per project with 7 Sun→Sat day cells", () => {
     const sunDays = [
       "2026-05-24",

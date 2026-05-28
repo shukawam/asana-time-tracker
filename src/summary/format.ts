@@ -58,7 +58,9 @@ export function formatCsv(entries: TimeEntry[]): string {
     const date = formatSheetDate(e.entered_on);
     const role = e.time_tracking_category?.name ?? "";
     const activity = e.task?.name ?? "";
-    rows.push([date, csvEscape(role), csvEscape(activity), String(hours)].join(","));
+    rows.push(
+      [date, sheetCell(role), sheetCell(activity), String(hours)].join(","),
+    );
   }
   return rows.join("\n");
 }
@@ -81,11 +83,23 @@ export function formatSfdc(week: WeekRollup): string {
   lines.push("");
   for (const c of week.customers) {
     const cells = week.days.map((d) => String(Math.round((c.byDate[d] ?? 0) / 60)));
-    lines.push([c.name, ...cells].join("\t"));
+    lines.push([sheetCell(c.name), ...cells].join("\t"));
   }
   lines.push("");
   lines.push(`(actual: ${(week.totalMinutes / 60).toFixed(2)}h across ${week.customers.length} customer(s))`);
   return lines.join("\n");
+}
+
+/**
+ * Defang spreadsheet formula injection (CWE-1236). Any cell starting with =, +,
+ * -, @, tab, or CR is interpreted as a formula by Excel/Sheets/Numbers. Asana
+ * task / category / project names are user-controllable in a shared workspace,
+ * so anything we hand to a paste-into-spreadsheet flow has to be neutralized.
+ * Prefix with a single apostrophe — spreadsheets strip it on display.
+ */
+function sheetCell(s: string): string {
+  const escaped = csvEscape(/^[=+\-@\t\r]/.test(s) ? `'${s}` : s);
+  return escaped;
 }
 
 function csvEscape(s: string): string {
