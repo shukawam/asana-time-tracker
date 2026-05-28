@@ -60,11 +60,26 @@ export async function runAliasAddLoop(
         return true;
       },
     });
-    config.customerAliases[alias.trim().toLowerCase()] = {
-      projectGid: project.gid,
-      name: project.name,
-    };
-    added++;
+    const key = alias.trim().toLowerCase();
+    const collision = config.customerAliases[key];
+    if (collision && collision.projectGid !== project.gid) {
+      const ok = await confirm({
+        message:
+          `Alias "${key}" is already mapped to "${collision.name}". ` +
+          `Reassign it to "${project.name}"? Future \`att log ${key} ...\` will go to the new project.`,
+        default: false,
+      });
+      if (!ok) {
+        console.log(`  ↳ skipped (kept "${key}" → ${collision.name})`);
+      } else {
+        config.customerAliases[key] = { projectGid: project.gid, name: project.name };
+        added++;
+      }
+    } else {
+      // new alias, or re-confirming the same project — silent overwrite is fine
+      config.customerAliases[key] = { projectGid: project.gid, name: project.name };
+      added++;
+    }
     if (opts.stopAfterFirst) break;
     keepAdding = await confirm({ message: "Add another?", default: false });
   }
