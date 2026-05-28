@@ -1,6 +1,6 @@
 import { loadConfig } from "../config.js";
 import { buildApis } from "../asana/client.js";
-import { updateTimeEntry } from "../asana/timeEntries.js";
+import { getTimeEntry, updateTimeEntry } from "../asana/timeEntries.js";
 import { parseIsoDate, toIsoDate } from "../util/date.js";
 
 export interface EditOpts {
@@ -14,6 +14,18 @@ export async function editCommand(entryGid: string, opts: EditOpts): Promise<voi
   }
   const config = await loadConfig();
   const apis = buildApis(config);
+
+  // Fetch first so we can verify ownership before mutating. att is single-user
+  // by design (rmCommand already enforces this); same rule for edit.
+  const current = await getTimeEntry(apis, entryGid);
+  const ownerGid = current.created_by?.gid;
+  if (!ownerGid || ownerGid !== config.userGid) {
+    const ownerName = current.created_by?.name ?? ownerGid ?? "(unknown)";
+    throw new Error(
+      `Refusing to edit entry ${entryGid}: owned by ${ownerName}, not you. ` +
+        `att is single-user; edit other users' entries via the Asana web UI.`,
+    );
+  }
 
   const changes: { durationMinutes?: number; enteredOn?: string } = {};
   if (opts.hours) {
