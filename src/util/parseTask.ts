@@ -8,6 +8,8 @@
  *   https://app.asana.com/1/<workspace>/inbox/<...>?focus_task=<task_gid>
  *   bare numeric GID
  */
+const ASANA_HOSTS = new Set(["app.asana.com"]);
+
 export function parseTaskRef(input: string): string {
   const trimmed = input.trim();
   if (/^\d+$/.test(trimmed)) return trimmed;
@@ -16,6 +18,9 @@ export function parseTaskRef(input: string): string {
     url = new URL(trimmed);
   } catch {
     throw new Error(`Not a valid Asana task URL or GID: ${input}`);
+  }
+  if (!ASANA_HOSTS.has(url.hostname)) {
+    throw new Error(`Not an Asana URL (host: ${url.hostname}): ${input}`);
   }
   const focus = url.searchParams.get("focus_task");
   if (focus && /^\d+$/.test(focus)) return focus;

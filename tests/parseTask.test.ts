@@ -33,4 +33,9 @@ describe("parseTaskRef", () => {
   it("throws when URL has no numeric segment", () => {
     expect(() => parseTaskRef("https://app.asana.com/foo/bar")).toThrow();
   });
+
+  it("rejects non-asana hosts even with numeric path segments", () => {
+    expect(() => parseTaskRef("https://example.com/0/1234/5678")).toThrow(/Not an Asana URL/);
+    expect(() => parseTaskRef("https://evil.app.asana.com.attacker.example/0/1/2")).toThrow(/Not an Asana URL/);
+  });
 });
