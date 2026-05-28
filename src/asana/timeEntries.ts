@@ -15,8 +15,11 @@ export interface TimeEntry {
   created_by?: { gid: string; name?: string } | null;
 }
 
+// Opt fields are explicit because Asana's API only returns gids by default;
+// summary's --customer filter depends on entry.task.projects[].gid, so name
+// alone wouldn't be enough if the SDK ever stops volunteering ids.
 const ENTRY_FIELDS =
-  "duration_minutes,entered_on,task.name,task.permalink_url,task.projects.name,time_tracking_category.name,created_by.gid,created_by.name";
+  "duration_minutes,entered_on,task.name,task.permalink_url,task.projects.gid,task.projects.name,time_tracking_category.name,created_by.gid,created_by.name";
 
 export async function createTimeEntry(
   apis: AsanaApis,
