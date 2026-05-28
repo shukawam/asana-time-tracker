@@ -24,10 +24,6 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
           cache: 'npm'
 
-      # Node 20.x ships with npm 10, but OIDC trusted publishing only
-      # authenticates correctly from npm 11.5.1+. Without this upgrade,
-      # provenance signs OK but the registry PUT fails with a misleading
-      # 404. Pin to npm@11 to track patches within the supported major.
       - name: Upgrade npm for OIDC trusted publishing
         run: npm install -g npm@11
 
