@@ -45,7 +45,8 @@ export async function loadConfig(): Promise<Config> {
 }
 
 export async function saveConfig(config: Config): Promise<void> {
-  await fs.mkdir(CONFIG_DIR, { recursive: true });
+  await fs.mkdir(CONFIG_DIR, { recursive: true, mode: 0o700 });
+  await fs.chmod(CONFIG_DIR, 0o700).catch(() => {});
   const toWrite: Config = { ...config };
   if (process.env.ASANA_PAT && toWrite.asanaPat === process.env.ASANA_PAT) {
     delete toWrite.asanaPat;
@@ -73,5 +74,5 @@ export function configDir(): string {
 }
 
 export async function ensureConfigDir(): Promise<void> {
-  await fs.mkdir(dirname(CONFIG_PATH), { recursive: true });
+  await fs.mkdir(dirname(CONFIG_PATH), { recursive: true, mode: 0o700 });
 }
