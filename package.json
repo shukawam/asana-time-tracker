@@ -1,26 +1,50 @@
 {
-  "name": "asana-time-tracker",
+  "name": "@shukawam/asana-time-tracker",
   "version": "0.1.0",
   "description": "CLI to record billable hours into Asana as the single source of truth, with weekly copy-paste summaries for SFDC and Spreadsheet",
   "type": "module",
   "bin": {
-    "att": "./bin/att.mjs"
+    "att": "./dist/bin/att.js"
   },
+  "files": [
+    "dist",
+    "skills",
+    "img",
+    "README.md",
+    "README_ja.md",
+    "LICENSE"
+  ],
   "scripts": {
     "att": "tsx src/bin/att.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "install-skill": "node scripts/install-skill.mjs"
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "prepublishOnly": "npm run typecheck && npm run build"
   },
-  "keywords": ["asana", "time-tracking", "cli"],
+  "keywords": [
+    "asana",
+    "time-tracking",
+    "cli"
+  ],
   "author": "Shuhei Kawamura",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shukawam/asana-time-tracker.git"
+  },
+  "homepage": "https://github.com/shukawam/asana-time-tracker#readme",
+  "bugs": {
+    "url": "https://github.com/shukawam/asana-time-tracker/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
-    "@inquirer/prompts": "^5.5.0",
+    "@inquirer/prompts": "^8.5.0",
     "asana": "^3.0.13",
     "commander": "^12.1.0"
   },
