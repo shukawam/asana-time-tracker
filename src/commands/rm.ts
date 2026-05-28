@@ -23,19 +23,45 @@ export async function rmCommand(entryGids: string[], opts: RmOpts): Promise<void
     }),
   );
 
-  console.log(`About to delete ${entryGids.length} time entr${entryGids.length === 1 ? "y" : "ies"}:`);
+  // Refuse to delete entries that aren't ours, even if the PAT has the
+  // permission to. The only path to "I want to delete someone else's entry"
+  // is the Asana web UI; this CLI is single-user by design.
+  const deletable: string[] = [];
+  const skipped: { gid: string; reason: string }[] = [];
   for (const f of fetched) {
-    if (f.entry) {
-      const project = f.entry.task?.projects?.[0]?.name ?? "(no project)";
-      const hours = (f.entry.duration_minutes / 60).toFixed(2);
-      console.log(`  - ${f.gid}  ${f.entry.entered_on}  ${hours}h  [${project}] ${f.entry.task?.name ?? "(?)"}`);
-    } else {
-      console.log(`  - ${f.gid}  (could not load: ${f.err})`);
+    if (!f.entry) {
+      skipped.push({ gid: f.gid, reason: `could not load: ${f.err}` });
+      continue;
     }
+    const ownerGid = f.entry.created_by?.gid;
+    if (ownerGid && ownerGid !== config.userGid) {
+      const ownerName = f.entry.created_by?.name ?? ownerGid;
+      skipped.push({ gid: f.gid, reason: `owned by ${ownerName}, not you` });
+      continue;
+    }
+    deletable.push(f.gid);
+  }
+
+  console.log(`About to delete ${deletable.length} of ${entryGids.length} time entr${entryGids.length === 1 ? "y" : "ies"}:`);
+  for (const f of fetched) {
+    if (!f.entry) continue;
+    if (skipped.some((s) => s.gid === f.gid)) continue;
+    const project = f.entry.task?.projects?.[0]?.name ?? "(no project)";
+    const hours = (f.entry.duration_minutes / 60).toFixed(2);
+    console.log(`  - ${f.gid}  ${f.entry.entered_on}  ${hours}h  [${project}] ${f.entry.task?.name ?? "(?)"}`);
+  }
+  if (skipped.length > 0) {
+    console.log(`Skipping ${skipped.length}:`);
+    for (const s of skipped) console.log(`  - ${s.gid}  (${s.reason})`);
+  }
+  if (deletable.length === 0) {
+    console.log("Nothing to delete.");
+    if (skipped.length > 0) process.exitCode = 1;
+    return;
   }
 
   if (!opts.yes) {
-    const ok = await confirm({ message: "Delete all of the above?", default: false });
+    const ok = await confirm({ message: "Delete the above?", default: false });
     if (!ok) {
       console.log("Aborted.");
       return;
@@ -43,7 +69,7 @@ export async function rmCommand(entryGids: string[], opts: RmOpts): Promise<void
   }
 
   const results = await Promise.all(
-    entryGids.map(async (gid) => {
+    deletable.map(async (gid) => {
       try {
         await deleteTimeEntry(apis, gid);
         return { gid, ok: true as const };
@@ -59,5 +85,5 @@ export async function rmCommand(entryGids: string[], opts: RmOpts): Promise<void
   for (const f of failed) {
     console.error(`  ✗ ${f.gid}: ${("err" in f ? f.err : "unknown error")}`);
   }
-  if (failed.length > 0) process.exitCode = 1;
+  if (failed.length > 0 || skipped.length > 0) process.exitCode = 1;
 }

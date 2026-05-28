@@ -12,10 +12,11 @@ export interface TimeEntry {
     projects?: { gid: string; name: string }[];
   };
   time_tracking_category?: { gid: string; name: string } | null;
+  created_by?: { gid: string; name?: string } | null;
 }
 
 const ENTRY_FIELDS =
-  "duration_minutes,entered_on,task.name,task.permalink_url,task.projects.name,time_tracking_category.name";
+  "duration_minutes,entered_on,task.name,task.permalink_url,task.projects.name,time_tracking_category.name,created_by.name";
 
 export async function createTimeEntry(
   apis: AsanaApis,
