@@ -18,10 +18,14 @@ export async function initCommand(): Promise<void> {
       validate: (v) => (v.trim().length > 10 ? true : "Token looks too short"),
     }));
 
-  const draft: Config = {
-    ...existing,
-    asanaPat: process.env.ASANA_PAT ? existing.asanaPat : pat,
-  };
+  const draft: Config = { ...existing };
+  if (process.env.ASANA_PAT) {
+    // PAT comes from the environment — drop any previously-persisted token so
+    // unsetting the env var later doesn't silently fall back to a stale value.
+    delete draft.asanaPat;
+  } else {
+    draft.asanaPat = pat;
+  }
 
   const apis = buildApisFresh(draft, pat);
 
