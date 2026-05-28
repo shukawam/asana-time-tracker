@@ -83,7 +83,7 @@ export function formatSfdc(week: WeekRollup): string {
   lines.push("");
   for (const c of week.customers) {
     const cells = week.days.map((d) => String(Math.round((c.byDate[d] ?? 0) / 60)));
-    lines.push([sheetCell(c.name), ...cells].join("\t"));
+    lines.push([tsvCell(c.name), ...cells].join("\t"));
   }
   lines.push("");
   lines.push(`(actual: ${(week.totalMinutes / 60).toFixed(2)}h across ${week.customers.length} customer(s))`);
@@ -91,15 +91,24 @@ export function formatSfdc(week: WeekRollup): string {
 }
 
 /**
- * Defang spreadsheet formula injection (CWE-1236). Any cell starting with =, +,
- * -, @, tab, or CR is interpreted as a formula by Excel/Sheets/Numbers. Asana
- * task / category / project names are user-controllable in a shared workspace,
- * so anything we hand to a paste-into-spreadsheet flow has to be neutralized.
- * Prefix with a single apostrophe — spreadsheets strip it on display.
+ * Defang spreadsheet formula injection (CWE-1236) for CSV cells. Any cell
+ * starting with =, +, -, @, tab, or CR is interpreted as a formula by
+ * Excel/Sheets/Numbers. Prefix with a single apostrophe (spreadsheets strip
+ * it on display) before normal CSV quoting.
  */
 function sheetCell(s: string): string {
   const escaped = csvEscape(/^[=+\-@\t\r]/.test(s) ? `'${s}` : s);
   return escaped;
+}
+
+/**
+ * TSV has no quoting mechanism — an embedded tab opens a new column, a
+ * newline opens a new row. Replace control whitespace with spaces, then
+ * apply the same formula-injection defang as sheetCell.
+ */
+function tsvCell(s: string): string {
+  const flattened = s.replace(/[\t\r\n]+/g, " ").trim();
+  return /^[=+\-@]/.test(flattened) ? `'${flattened}` : flattened;
 }
 
 function csvEscape(s: string): string {

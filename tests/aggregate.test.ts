@@ -147,6 +147,31 @@ describe("format output", () => {
     expect(dataLine).toContain('"\'=HYPERLINK(""http://evil"",""click"")"');
   });
 
+  it("sfdc TSV flattens tab/newline in customer names so the grid doesn't break", () => {
+    const malicious: TimeEntry = entry(
+      "t99",
+      "p9",
+      "Acme\tInc\nrow2",
+      "x",
+      "2026-05-25",
+      60,
+    );
+    const sunDays = [
+      "2026-05-24",
+      "2026-05-25",
+      "2026-05-26",
+      "2026-05-27",
+      "2026-05-28",
+      "2026-05-29",
+      "2026-05-30",
+    ];
+    const w = rollupWeek([malicious], sunDays);
+    const out = formatSfdc(w);
+    const dataLines = out.split("\n").filter((l) => l.includes("Acme"));
+    expect(dataLines).toHaveLength(1);
+    expect(dataLines[0]).toBe("Acme Inc row2\t0\t1\t0\t0\t0\t0\t0");
+  });
+
   it("sfdc format emits one TSV row per project with 7 Sun→Sat day cells", () => {
     const sunDays = [
       "2026-05-24",
