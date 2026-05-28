@@ -14,6 +14,16 @@ export interface SummaryOpts {
 
 export async function summaryCommand(opts: SummaryOpts): Promise<void> {
   const config = await loadConfig();
+  const format = opts.format ?? "md";
+
+  if (format === "csv" && !opts.customer) {
+    throw new Error(
+      "`--format csv` requires `--customer <alias>`. The CSV has no customer column, " +
+        "and the destination reporting sheet is per-customer — mixing customers would " +
+        "miscount hours. Pass --customer <alias>, or use --format md / sfdc for a multi-customer view.",
+    );
+  }
+
   const apis = buildApis(config);
 
   let projectGid: string | undefined;
@@ -28,7 +38,6 @@ export async function summaryCommand(opts: SummaryOpts): Promise<void> {
     customerLabel = project.name;
   }
 
-  const format = opts.format ?? "md";
   const range =
     format === "sfdc"
       ? opts.lastWeek
