@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { Command } from "commander";
+import { createRequire } from "node:module";
 import { initCommand } from "../commands/init.js";
 import { projectsCommand } from "../commands/projects.js";
 import { projectsAddCommand } from "../commands/projectsAdd.js";
@@ -13,12 +14,19 @@ import { summaryCommand } from "../commands/summary.js";
 import { rolesCommand, rolesSetDefaultCommand } from "../commands/roles.js";
 import { rolesAddCommand } from "../commands/rolesAdd.js";
 import { rolesRmCommand } from "../commands/rolesRm.js";
+import { installSkillCommand } from "../commands/installSkill.js";
+
+// Read the version straight from package.json so `att --version` tracks the
+// published release. Path resolves identically in dev (src/bin/att.ts),
+// after build (dist/bin/att.js), and post-install (the installed package's
+// dist/bin/att.js → its sibling ../../package.json).
+const pkg = createRequire(import.meta.url)("../../package.json") as { version: string };
 
 const program = new Command();
 program
   .name("att")
   .description("Asana Time Tracker — record billable hours into Asana as the single source of truth")
-  .version("0.1.0");
+  .version(pkg.version);
 
 program
   .command("init")
@@ -117,6 +125,11 @@ program
   .option("--comment <text>", "notes attached to a newly created task")
   .option("--role <alias>", "role alias (defaults to configured default; see `att roles`)")
   .action(runAsync((hours: string, target: string | undefined, desc: string | undefined, opts) => logCommand(hours, target, desc, opts)));
+
+program
+  .command("install-skill")
+  .description("Symlink the bundled Claude Code skill into ~/.claude/skills/att/")
+  .action(runAsync(installSkillCommand));
 
 program.parseAsync(process.argv).catch(handleFatal);
 
