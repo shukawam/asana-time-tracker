@@ -161,7 +161,7 @@ npm run att -- ...    # 開発時のCLI実行（npm linkなしでもOK）
 
 ### 既知の問題
 
-- 公式 `asana` SDK が古い `superagent` / `formidable` をtransitive depで引いてくるため、npm auditで脆弱性が検出されます。これらはサーバサイドHTTPパース起因の脆弱性で、本ツールが使うread-onlyのPAT認証フローには影響しません。上流追跡: <https://github.com/Asana/node-asana>
+- 公式 `asana` SDK が `superagent` / `formidable` / `glob@7` / `inflight` といった非推奨パッケージを transitive dep で引いてくるため `npm install` 時に deprecation 通知が出ます。`npm audit --omit=dev` 上は現状0件ですが、上流で更新されない限り通知自体は残ります。追跡: <https://github.com/Asana/node-asana>
 
 ## ロードマップ（MVPには意図的に含めず）
 

@@ -158,7 +158,7 @@ npm run att -- ...    # run CLI in dev (no global link needed)
 
 ### Known issues
 
-- The official `asana` SDK pulls in old `superagent`/`formidable` transitive dependencies that npm flags as vulnerable. They affect server-side HTTP parsing, not the read-only PAT auth flow used here. Upstream tracking: <https://github.com/Asana/node-asana>.
+- The official `asana` SDK transitively pulls in deprecated packages (`superagent`, `formidable`, `glob@7`, `inflight`). Today they only surface as `npm install` deprecation notices, not as `npm audit --omit=dev` findings, but they will eventually need upstream attention. Tracking: <https://github.com/Asana/node-asana>.
 
 ## Roadmap (intentionally NOT in MVP)
 
