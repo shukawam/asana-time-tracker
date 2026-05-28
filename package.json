@@ -4,7 +4,7 @@
   "description": "CLI to record billable hours into Asana as the single source of truth, with weekly copy-paste summaries for SFDC and Spreadsheet",
   "type": "module",
   "bin": {
-    "att": "./dist/bin/att.js"
+    "att": "dist/bin/att.js"
   },
   "files": [
     "dist",
@@ -19,7 +19,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && chmod +x dist/bin/att.js",
     "prepare": "npm run build",
     "prepublishOnly": "npm run typecheck && npm run build"
   },
