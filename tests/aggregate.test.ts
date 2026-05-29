@@ -92,43 +92,35 @@ describe("format output", () => {
   });
 
   it("csv format is per-entry rows with Date/Kong Resource/Activity Details/Hours Consumed", () => {
-    const withRole = (e: TimeEntry, role: string): TimeEntry => ({
-      ...e,
-      time_tracking_category: { gid: "c1", name: role },
-    });
-    const csvEntries = [
-      withRole(entries[0], "Engagement Manager"),
-      withRole(entries[1], "Engagement Manager"),
-      withRole(entries[2], "Field Engineer"),
-    ];
-    const out = formatCsv(csvEntries);
+    const csvEntries = [entries[0], entries[1], entries[2]];
+    const out = formatCsv(csvEntries, "Field Engineer");
     const lines = out.split("\n");
     expect(lines[0]).toBe("Date,Kong Resource,Activity Details,Hours Consumed");
-    expect(lines[1]).toBe("2026/5/25,Engagement Manager,Design review,2");
-    expect(lines[2]).toBe("2026/5/26,Engagement Manager,Kickoff,2");
+    expect(lines[1]).toBe("2026/5/25,Field Engineer,Design review,2");
+    expect(lines[2]).toBe("2026/5/26,Field Engineer,Kickoff,2");
     expect(lines[3]).toBe("2026/5/28,Field Engineer,Impl,4");
   });
 
-  it("csv drops zero-rounded entries and blanks out missing role", () => {
+  it("csv drops zero-rounded entries and blanks Kong Resource when unset", () => {
     const tiny: TimeEntry = {
       gid: "x",
       duration_minutes: 15,
       entered_on: "2026-05-25",
       task: { gid: "t9", name: "tiny", projects: [{ gid: "p1", name: "ACME" }] },
     };
-    const withoutRole: TimeEntry = {
+    const normal: TimeEntry = {
       gid: "y",
       duration_minutes: 60,
       entered_on: "2026-05-26",
-      task: { gid: "t10", name: "no role", projects: [{ gid: "p1", name: "ACME" }] },
+      task: { gid: "t10", name: "one", projects: [{ gid: "p1", name: "ACME" }] },
     };
-    const out = formatCsv([tiny, withoutRole]);
+    const out = formatCsv([tiny, normal]);
     const lines = out.split("\n");
     expect(lines).toHaveLength(2);
-    expect(lines[1]).toBe("2026/5/26,,no role,1");
+    expect(lines[1]).toBe("2026/5/26,,one,1");
   });
 
-  it("csv defangs spreadsheet formula injection in role/activity cells", () => {
+  it("csv defangs spreadsheet formula injection in kongResource and activity cells", () => {
     const malicious: TimeEntry = {
       gid: "z",
       duration_minutes: 60,
@@ -138,11 +130,10 @@ describe("format output", () => {
         name: "=HYPERLINK(\"http://evil\",\"click\")",
         projects: [{ gid: "p1", name: "ACME" }],
       },
-      time_tracking_category: { gid: "c1", name: "+Engagement" },
     };
-    const out = formatCsv([malicious]);
+    const out = formatCsv([malicious], "+Engagement");
     const dataLine = out.split("\n")[1];
-    // both cells start with an apostrophe (CSV-quoted because of the embedded ",")
+    // both cells start with an apostrophe (activity cell is CSV-quoted because of the embedded ",")
     expect(dataLine).toContain(",'+Engagement,");
     expect(dataLine).toContain('"\'=HYPERLINK(""http://evil"",""click"")"');
   });

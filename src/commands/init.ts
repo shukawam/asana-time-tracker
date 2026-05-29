@@ -1,4 +1,4 @@
-import { password, confirm, select } from "@inquirer/prompts";
+import { password, confirm, input, select } from "@inquirer/prompts";
 import { loadConfig, saveConfig, configPath, type Config } from "../config.js";
 import { buildApis, unwrapData } from "../asana/client.js";
 import { fetchWorkspaceProjects, runAliasAddLoop } from "./aliasInteractive.js";
@@ -53,6 +53,14 @@ export async function initCommand(): Promise<void> {
   draft.workspaceName = workspaceName;
   draft.userGid = me.gid;
   draft.userName = me.name;
+
+  const kongResource = await input({
+    message: "Value to emit in the CSV 'Kong Resource' column (leave blank to skip)",
+    default: draft.kongResource ?? "",
+  });
+  const trimmed = kongResource.trim();
+  if (trimmed) draft.kongResource = trimmed;
+  else delete draft.kongResource;
 
   const addProjects = await confirm({
     message: "Register customer project aliases now?",

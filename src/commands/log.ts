@@ -10,7 +10,6 @@ export interface LogOpts {
   task?: string;
   date?: string;
   comment?: string;
-  role?: string;
 }
 
 export async function logCommand(
@@ -26,24 +25,6 @@ export async function logCommand(
 
   const config = await loadConfig();
   const apis = buildApis(config);
-
-  const roleAlias = (opts.role ?? config.defaultRole)?.trim().toLowerCase();
-  let categoryGid: string | undefined;
-  let roleDisplay: string | undefined;
-  if (roleAlias) {
-    const role = config.roles[roleAlias];
-    if (!role) {
-      throw new Error(
-        `Unknown role alias: ${roleAlias}. Run \`att roles\` to list, or \`att roles add <alias> "<name>"\` to register.`,
-      );
-    }
-    categoryGid = role.categoryGid;
-    roleDisplay = role.name;
-  } else if (Object.keys(config.roles).length > 0) {
-    throw new Error(
-      "No --role provided and no default set. Pick one with `att roles set-default <alias>`, or pass --role.",
-    );
-  }
 
   let task: AsanaTask;
   let createdNew = false;
@@ -91,10 +72,9 @@ export async function logCommand(
     taskGid: task.gid,
     durationMinutes,
     enteredOn,
-    categoryGid,
   });
 
-  printLogResult(task, entry, { hours, enteredOn, createdNew, roleDisplay });
+  printLogResult(task, entry, { hours, enteredOn, createdNew });
 }
 
 function parseHours(input: string): number {
@@ -128,12 +108,11 @@ function lookbackIso(days: number): string {
 function printLogResult(
   task: AsanaTask,
   _entry: { gid: string; duration_minutes: number; entered_on: string },
-  ctx: { hours: number; enteredOn: string; createdNew: boolean; roleDisplay?: string },
+  ctx: { hours: number; enteredOn: string; createdNew: boolean },
 ): void {
   const projectName = task.projects?.[0]?.name ?? "(no project)";
   const verb = ctx.createdNew ? "Created task + logged" : "Logged";
-  const roleSuffix = ctx.roleDisplay ? ` as ${ctx.roleDisplay}` : "";
-  console.log(`✓ ${verb} ${ctx.hours}h on ${ctx.enteredOn}${roleSuffix}`);
+  console.log(`✓ ${verb} ${ctx.hours}h on ${ctx.enteredOn}`);
   console.log(`  [${projectName}] ${task.name}`);
   if (task.permalink_url) console.log(`  ${task.permalink_url}`);
 }

@@ -62,7 +62,7 @@ export async function summaryCommand(opts: SummaryOpts): Promise<void> {
       break;
     }
     case "csv":
-      console.log(formatCsv(entries));
+      console.log(formatCsv(entries, config.kongResource));
       break;
     case "sfdc": {
       const week = rollupWeek(entries, range.days);

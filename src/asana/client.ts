@@ -8,7 +8,6 @@ export interface AsanaApis {
   projects: any;
   tasks: any;
   timeTrackingEntries: any;
-  timeTrackingCategories: any;
 }
 
 let cached: AsanaApis | null = null;
@@ -25,7 +24,6 @@ export function buildApis(config: Config): AsanaApis {
     projects: new A.ProjectsApi(),
     tasks: new A.TasksApi(),
     timeTrackingEntries: new A.TimeTrackingEntriesApi(),
-    timeTrackingCategories: new A.TimeTrackingCategoriesApi(),
   };
   return cached;
 }

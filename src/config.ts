@@ -5,11 +5,6 @@ import { dirname, join } from "node:path";
 const CONFIG_DIR = join(homedir(), ".config", "att");
 const CONFIG_PATH = join(CONFIG_DIR, "config.json");
 
-export interface RoleEntry {
-  name: string;
-  categoryGid: string;
-}
-
 export interface Config {
   asanaPat?: string;
   workspaceGid: string;
@@ -17,26 +12,46 @@ export interface Config {
   userGid: string;
   userName?: string;
   customerAliases: Record<string, { projectGid: string; name: string }>;
-  roles: Record<string, RoleEntry>;
-  defaultRole?: string;
+  /** Value emitted in the CSV "Kong Resource" column for every row. */
+  kongResource?: string;
 }
 
 const EMPTY: Config = {
   workspaceGid: "",
   userGid: "",
   customerAliases: {},
-  roles: {},
+};
+
+type LegacyRoleEntry = { name?: string; categoryGid?: string };
+type LegacyConfigShape = Partial<Config> & {
+  roles?: Record<string, LegacyRoleEntry>;
+  defaultRole?: string;
 };
 
 export async function loadConfig(): Promise<Config> {
   try {
     const raw = await fs.readFile(CONFIG_PATH, "utf8");
-    const parsed = JSON.parse(raw) as Partial<Config>;
+    const parsed = JSON.parse(raw) as LegacyConfigShape;
+
+    // One-shot migration from the removed roles/defaultRole shape:
+    // if kongResource isn't set but the user had a defaultRole pointing at a
+    // role with a display name, promote that name into kongResource so the
+    // CSV column keeps emitting the same string post-upgrade.
+    if (
+      !parsed.kongResource &&
+      typeof parsed.defaultRole === "string" &&
+      parsed.roles &&
+      typeof parsed.roles[parsed.defaultRole]?.name === "string"
+    ) {
+      parsed.kongResource = parsed.roles[parsed.defaultRole]!.name!;
+    }
+    delete parsed.roles;
+    delete parsed.defaultRole;
+
     return {
       ...EMPTY,
       ...parsed,
       customerAliases: parsed.customerAliases ?? {},
-      roles: parsed.roles ?? {},
     };
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") return { ...EMPTY };

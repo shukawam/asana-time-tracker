@@ -19,7 +19,7 @@ att --help
 
 Requires Node.js ≥ 20.
 
-> **From source (contributors)**: `git clone https://github.com/shukawam/asana-time-tracker && cd asana-time-tracker && npm install && npm link`. The dev workflow runs TypeScript directly via `tsx` (no build step) — see [Development](#development).
+> **From source (contributors)**: `git clone https://github.com/shukawam/asana-time-tracker && cd asana-time-tracker && npm install && npm link`. `npm install` runs `prepare` automatically, which builds `dist/` — so `npm link` finds the executable. The dev loop itself uses `tsx` and doesn't need a rebuild on every edit; see [Development](#development).
 
 ## Setup
 
@@ -30,17 +30,9 @@ Requires Node.js ≥ 20.
    att init
    ```
 
-   You'll be prompted for the PAT (or set `ASANA_PAT` in the environment), then asked to register short aliases for each customer project (e.g. `acme` → "ACME Corp").
+   You'll be prompted for the PAT (or set `ASANA_PAT` in the environment), the value to emit in the CSV **Kong Resource** column (e.g. `Field Engineer` — leave blank to omit), and then short aliases for each customer project (e.g. `acme` → "ACME Corp").
 
-3. Register the roles you bill as (these become the **Kong Resource** column in the per-customer CSV sheet, and are stored as native Asana Time Tracking Categories):
-
-   ```bash
-   att roles add fe "Field Engineer"
-   att roles add em "Engagement Manager"
-   att roles set-default fe
-   ```
-
-Config lives at `~/.config/att/config.json` (mode 600).
+Config lives at `~/.config/att/config.json` (file mode 0600, dir mode 0700). If `ASANA_PAT` is set in the environment, `att init` will *delete* any previously-persisted PAT from the file so env precedence behaves as documented.
 
 ## Daily logging
 
@@ -56,9 +48,6 @@ att log 1 acme:recent
 
 # Backdate
 att log 2 beta "design review" --date 2026-05-27
-
-# Override the default role for this one entry
-att log 1 acme:recent --role em
 ```
 
 Each `att log` creates a `time_tracking_entry` on a task. The task's "Actual time" field updates automatically and is visible in the standard Asana UI.
@@ -76,7 +65,7 @@ att rm   <entry-gid> [<entry-gid> ...]   # multiple GIDs OK; shows a preview bef
 att recent --customer acme --days 21
 ```
 
-The `entry-gid` is shown in `att list` output.
+The `entry-gid` is shown in `att list` output. `att edit` and `att rm` are self-only: if a given GID isn't owned by you, `att` refuses to touch it (the Asana web UI is the path for anything else). This is a guardrail against typos with shared workspace PATs.
 
 ## Weekly export (Friday flow)
 
@@ -93,10 +82,10 @@ att summary --week --format sfdc                    # Sun→Sat per-day TSV for 
 
 | Date | Kong Resource | Activity Details | Hours Consumed |
 |---|---|---|---|
-| 2026/5/27 | Engagement Manager | 定例会準備 | 1 |
+| 2026/5/27 | Field Engineer | 定例会準備 | 1 |
 | 2026/5/27 | Field Engineer | 定例会 | 1 |
 
-Each Asana time entry becomes one row. **Use `--customer <alias>` to filter** — the destination sheet is per-customer, and entries that round to 0h are dropped. Date is `YYYY/M/D`, hours are `Math.round(min/60)`, and Kong Resource comes from the entry's role.
+Each Asana time entry becomes one row. **`--customer <alias>` is required** for this format — the destination sheet is per-customer, so without it `att` errors out rather than dump every customer's hours into the wrong tab. Entries that round to 0h are dropped; date is `YYYY/M/D`, hours are `Math.round(min/60)`, and **Kong Resource** is the static `config.kongResource` value (set during `att init`, blank if unset) — same string on every row.
 
 **SFDC** (`--format sfdc`): paste-ready TSV laid out to match SFDC's Time Entry grid — one row per project, 7 day columns **Sun→Sat**, integer hours per cell. Anchored to a Sunday-based week (the SFDC grid's orientation), not the Mon→Sun week the other formats use; `--last-week` shifts to the prior Sun→Sat. Select the project rows in the terminal and paste starting at the SUN cell of the corresponding row in SFDC.
 
@@ -121,16 +110,11 @@ att projects rm <alias> [<alias> ...]  # unregister one or more aliases (Asana p
 
 `att projects add` opens an interactive picker over your workspace's projects — no need to dig the Project GID out of Asana's URL. `att init` registers aliases too, but rerunning it makes you re-confirm PAT/workspace; `add` skips straight to the picker.
 
-## Roles (Kong Resource column)
+## Kong Resource column
 
-```bash
-att roles                              # list aliases + show which is default
-att roles add fe "Field Engineer"      # creates the Asana Time Tracking Category if needed
-att roles set-default fe               # used when `att log` is invoked without --role
-att roles rm <alias> [<alias> ...]     # alias removed from config; Asana category untouched
-```
+The CSV's **Kong Resource** column is filled with a single static string from `config.kongResource` (e.g. `Field Engineer`) — same value on every row. Set it during `att init`, or hand-edit `~/.config/att/config.json`. Leave it blank to emit an empty column.
 
-Roles are stored as native **Asana Time Tracking Categories**, so they round-trip via the Asana UI and any third-party reporting on the same workspace.
+> Note: an earlier design routed this through native Asana **Time Tracking Categories** (per-entry granularity). That API was not enabled in the target workspace, so the role/category surface was removed in favor of this simpler per-config-static approach.
 
 ## Using from Claude Code
 

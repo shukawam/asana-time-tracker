@@ -41,25 +41,26 @@ export function formatMarkdown(week: WeekRollup): string {
  *
  * - Date format: YYYY/M/D (no zero-pad)
  * - Hours Consumed: Math.round(duration_minutes / 60); rows that round to 0 are dropped
- * - Kong Resource: pulled from the entry's time_tracking_category name; blank if unset
+ * - Kong Resource: the static `kongResource` arg (from config), same on every row;
+ *   blank if the config field is unset
  *
  * Intended to be filtered to a single customer (`att summary --customer <alias>`)
  * before formatting, since the destination sheet is per-customer.
  */
-export function formatCsv(entries: TimeEntry[]): string {
+export function formatCsv(entries: TimeEntry[], kongResource: string = ""): string {
   const header = ["Date", "Kong Resource", "Activity Details", "Hours Consumed"].join(",");
   const rows: string[] = [header];
   const sorted = [...entries].sort((a, b) =>
     a.entered_on < b.entered_on ? -1 : a.entered_on > b.entered_on ? 1 : 0,
   );
+  const resourceCell = sheetCell(kongResource);
   for (const e of sorted) {
     const hours = Math.round(e.duration_minutes / 60);
     if (hours <= 0) continue;
     const date = formatSheetDate(e.entered_on);
-    const role = e.time_tracking_category?.name ?? "";
     const activity = e.task?.name ?? "";
     rows.push(
-      [date, sheetCell(role), sheetCell(activity), String(hours)].join(","),
+      [date, resourceCell, sheetCell(activity), String(hours)].join(","),
     );
   }
   return rows.join("\n");

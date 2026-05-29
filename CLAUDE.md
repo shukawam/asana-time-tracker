@@ -9,8 +9,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm run test:watch` — vitest in watch mode.
 - `npx vitest run tests/aggregate.test.ts -t "ignores entries outside the week"` — run a single test by file + name pattern.
 - `npm run typecheck` — `tsc --noEmit` for type-only check (no build artifacts).
-- `npm run build` — `rm -rf dist && tsc -p tsconfig.build.json` emits `dist/`, including the executable entry `dist/bin/att.js` (the shebang from `src/bin/att.ts` is preserved). `prepublishOnly` runs typecheck + build automatically before `npm publish`.
-- `npm link` then `att <args>` — global `att` binary. Run `npm run build` first; the `bin` field in package.json points at `dist/bin/att.js`.
+- `npm run build` — `rm -rf dist && tsc -p tsconfig.build.json && chmod +x dist/bin/att.js`. The `chmod` step is necessary because TypeScript's emit drops the executable bit even though the shebang is preserved from `src/bin/att.ts`. `prepublishOnly` runs typecheck + build automatically before `npm publish`; `prepare` runs build automatically after `npm install` in a git checkout (so `npm link` works without a manual build step).
+- `npm link` then `att <args>` — global `att` binary. With `prepare` wired up, a fresh `git clone && npm install && npm link` produces a working binary; no separate `npm run build` is needed.
 
 For the dev loop, `tsx` runs TypeScript directly (`npm run att -- <args>`), so source edits take effect without rebuilding. The compiled `dist/` is for publishing only.
 
@@ -41,7 +41,16 @@ src/config.ts           ← read/write ~/.config/att/config.json (mode 600); PAT
 
 - **Asana Business or Enterprise plan**. The whole tool depends on the Time Tracking Entries API (`/tasks/{gid}/time_tracking_entries`), which is gated to those tiers. Do not introduce features that assume Free/Premium.
 - **Customer = Asana Project**. One Asana Project per customer. `config.json` stores a `customerAliases` map of short slug → `{ projectGid, name }`. Don't bake in alternative shapes like portfolio-of-customers without coordinating with the user.
-- **The user is the only actor.** All queries are filtered by `userGid` (their own entries). There is no multi-user reporting path.
+- **The user is the only actor.** All queries are filtered by `userGid`. `att edit` and `att rm` additionally fail closed: they GET the entry first, check `created_by.gid === config.userGid`, and refuse on mismatch (and on missing `created_by`). If you add another mutating subcommand, you owe the same check.
+
+### Input hardening (already done — keep)
+
+A handful of small "trust nothing user-controllable" checks are scattered through the codebase. They each guard against a specific real failure mode — if you touch the surrounding code, preserve them:
+
+- `parseIsoDate` (`src/util/date.ts`): rejects calendar-invalid dates via round-trip check. JS's `new Date(2026, 1, 31)` silently rolls to March 3; for billing dates that has to throw.
+- `parseTaskRef` (`src/util/parseTask.ts`): allowlists `app.asana.com` as the only acceptable URL host before scraping a GID.
+- `sheetCell` / `tsvCell` (`src/summary/format.ts`): defang spreadsheet formula injection (CWE-1236) on any user-controllable string going into CSV/TSV. CSV cells get quoted; TSV has no quoting so tab/CR/newline are *flattened* to spaces. Don't share the helpers across formats — the rules differ.
+- `summary --format csv` (`src/commands/summary.ts`): throws if `--customer` is missing. The CSV has no customer column; mixing customers would silently miscount.
 
 ### The Asana SDK is CommonJS — import accordingly
 
@@ -56,11 +65,11 @@ const tasks = new (Asana as any).TasksApi();
 
 `src/asana/client.ts` caches the API objects after first auth. The SDK returns either `{ data, response }`-shaped objects or paginated `Collection` objects depending on the call; `unwrapData()` and `collectAll()` in `client.ts` handle both.
 
-### Roles (Kong Resource) — stored as Asana Time Tracking Categories
+### Kong Resource column — static value from config
 
-The "Kong Resource" column in the per-customer CSV sheet (e.g. "Field Engineer", "Engagement Manager") is **per-time-entry**, not per-task: the same Asana task can have entries logged under different roles. Asana's only native, per-entry attribute that fits this is **Time Tracking Category** (`time_tracking_category` on a `time_tracking_entry`, Enterprise+ feature). Do not encode role as a task-name prefix or a tag — that loses the per-entry granularity and fragments tasks.
+The "Kong Resource" column in the per-customer CSV sheet (e.g. "Field Engineer") is emitted as a static string read from `config.kongResource` — the same value lands on every CSV row. An earlier design routed this through Asana **Time Tracking Categories** (per-entry, native Enterprise+ feature), but the Categories API was not available in this workspace (`att roles add` returned `You do not have access to the time tracking feature.` while entries worked fine), so the role/category plumbing was removed. If we ever need per-entry granularity again, re-introducing categories is the right shape — don't paper over it with task-name prefixes or tags.
 
-`att roles add <alias> "<display>"` looks up or creates the named Time Tracking Category in the workspace and stores `{ name, categoryGid }` under `config.roles[alias]`. `defaultRole` in config is the fallback when `att log` is called without `--role`. The CSV reads the role back from `entry.time_tracking_category.name`.
+`att init` prompts for `kongResource`; users can also hand-edit `~/.config/att/config.json`. Leaving it unset emits a blank cell.
 
 ### Time entries — the data model
 
@@ -82,15 +91,16 @@ Weeks are **Monday-based, local time** by default (see `src/util/date.ts`). `wee
 
 - **md** is built from `WeekRollup` over a Mon→Sun week.
 - **sfdc** is also a `WeekRollup`, but anchored to a **Sun→Sat** week (`sundayWeekRange` / `lastSundayWeekRange` in `src/util/date.ts`) so the columns line up with the SFDC Time Entry grid. Emits one paste-ready TSV row per project: `<name>\t<sun>\t<mon>\t…\t<sat>`. Per-day cells are rounded to whole hours to match SFDC's hourly granularity.
-- **csv** is **per-entry**, not aggregated — one row per `time_tracking_entry`, columns `Date / Kong Resource / Activity Details / Hours Consumed`. Date is `YYYY/M/D`, hours are `Math.round(min/60)`, and entries that round to 0 are dropped. This shape is fixed by the user's customer reporting sheet template; don't restructure it.
-- `--customer <alias>` filters entries to one customer before formatting. The CSV format is meaningless without this filter (the destination sheet is per-customer).
+- **csv** is **per-entry**, not aggregated — one row per `time_tracking_entry`, columns `Date / Kong Resource / Activity Details / Hours Consumed`. Date is `YYYY/M/D`, hours are `Math.round(min/60)`, entries that round to 0 are dropped, and `Kong Resource` is the static `config.kongResource` string on every row (blank if unset). This shape is fixed by the user's customer reporting sheet template; don't restructure it.
+- `--customer <alias>` filters entries to one customer before formatting. `--format csv` *requires* `--customer` (enforced as an error in `summaryCommand`); md and sfdc accept it as an optional filter.
 
 If you add a new format, decide upfront whether it's aggregated (use rollup) or per-entry (use entries directly) — they have different shapes.
 
 ## Auth and config
 
-- PAT precedence: `process.env.ASANA_PAT` → `config.asanaPat` (in `~/.config/att/config.json`). `att init` will persist the PAT to config only when `ASANA_PAT` is not set in the environment at save time — this keeps env-driven setups from accidentally writing tokens to disk.
-- The config file is written with mode 600.
+- PAT precedence: `process.env.ASANA_PAT` → `config.asanaPat` (in `~/.config/att/config.json`). `att init` will *delete* any persisted `config.asanaPat` when `ASANA_PAT` is set, so the documented precedence actually holds — without this, unsetting the env var later would silently fall back to a stale on-disk token.
+- Config file is written with mode 0600; the parent directory `~/.config/att/` is created with mode 0700 (and chmod'd after creation in case it pre-existed with a looser mode).
+- `att --version` reads from `package.json` via `createRequire(import.meta.url)("../../package.json")`. The relative path resolves identically from `src/bin/att.ts` (dev), `dist/bin/att.js` (build), and the installed package layout. Don't hardcode a version string in `src/bin/att.ts`.
 
 ## Releasing a new version
 

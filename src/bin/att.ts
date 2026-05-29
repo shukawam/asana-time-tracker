@@ -11,9 +11,6 @@ import { listCommand } from "../commands/list.js";
 import { editCommand } from "../commands/edit.js";
 import { rmCommand } from "../commands/rm.js";
 import { summaryCommand } from "../commands/summary.js";
-import { rolesCommand, rolesSetDefaultCommand } from "../commands/roles.js";
-import { rolesAddCommand } from "../commands/rolesAdd.js";
-import { rolesRmCommand } from "../commands/rolesRm.js";
 import { installSkillCommand } from "../commands/installSkill.js";
 
 // Read the version straight from package.json so `att --version` tracks the
@@ -89,31 +86,6 @@ program
   .option("--format <md|csv|sfdc>", "output format (default md)", "md")
   .action(runAsync((opts) => summaryCommand(opts)));
 
-const roles = program
-  .command("roles")
-  .description("List or manage role aliases (mapped to Asana Time Tracking Categories)")
-  .action(runAsync(rolesCommand));
-
-roles
-  .command("add")
-  .description("Register a role alias (creates the underlying Asana Time Tracking Category if missing)")
-  .argument("<alias>", "short alias used on the command line (e.g. fe)")
-  .argument("<displayName>", 'display name as it appears in the CSV (e.g. "Field Engineer")')
-  .action(runAsync((alias: string, name: string) => rolesAddCommand(alias, name)));
-
-roles
-  .command("rm")
-  .description("Remove one or more role aliases (Asana categories are untouched)")
-  .argument("<aliases...>", "role aliases to remove")
-  .option("-y, --yes", "skip confirmation")
-  .action(runAsync((aliases: string[], opts) => rolesRmCommand(aliases, opts)));
-
-roles
-  .command("set-default")
-  .description("Set the default role used by `att log` when --role is omitted")
-  .argument("<alias>", "role alias")
-  .action(runAsync((alias: string) => rolesSetDefaultCommand(alias)));
-
 program
   .command("log")
   .description("Log billable time. Examples: `att log 1.5 acme \"kickoff\"`, `att log 0.5 acme:recent`, `att log 1 --task <url>`")
@@ -123,7 +95,6 @@ program
   .option("--task <url-or-gid>", "log against an existing Asana task")
   .option("--date <yyyy-mm-dd>", "date the work happened (defaults to today)")
   .option("--comment <text>", "notes attached to a newly created task")
-  .option("--role <alias>", "role alias (defaults to configured default; see `att roles`)")
   .action(runAsync((hours: string, target: string | undefined, desc: string | undefined, opts) => logCommand(hours, target, desc, opts)));
 
 program

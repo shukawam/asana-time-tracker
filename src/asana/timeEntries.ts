@@ -11,7 +11,6 @@ export interface TimeEntry {
     permalink_url?: string;
     projects?: { gid: string; name: string }[];
   };
-  time_tracking_category?: { gid: string; name: string } | null;
   created_by?: { gid: string; name?: string } | null;
 }
 
@@ -19,7 +18,7 @@ export interface TimeEntry {
 // summary's --customer filter depends on entry.task.projects[].gid, so name
 // alone wouldn't be enough if the SDK ever stops volunteering ids.
 const ENTRY_FIELDS =
-  "duration_minutes,entered_on,task.name,task.permalink_url,task.projects.gid,task.projects.name,time_tracking_category.name,created_by.gid,created_by.name";
+  "duration_minutes,entered_on,task.name,task.permalink_url,task.projects.gid,task.projects.name,created_by.gid,created_by.name";
 
 export async function createTimeEntry(
   apis: AsanaApis,
@@ -27,14 +26,12 @@ export async function createTimeEntry(
     taskGid: string;
     durationMinutes: number;
     enteredOn: string;
-    categoryGid?: string;
   },
 ): Promise<TimeEntry> {
   const data: any = {
     duration_minutes: args.durationMinutes,
     entered_on: args.enteredOn,
   };
-  if (args.categoryGid) data.time_tracking_category = args.categoryGid;
   const res = await apis.timeTrackingEntries.createTimeTrackingEntry(
     { data },
     args.taskGid,
